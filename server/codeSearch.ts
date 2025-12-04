@@ -1,6 +1,15 @@
 import { invokeLLM } from "./_core/llm";
-import axios from "axios";
+import { z } from "zod";
+import puppeteer from "puppeteer";
+import * as fs from "fs";
 import { verifyCodeWithBrowser } from "./browserVerification";
+
+function log(message: any) {
+  console.log(message);
+  try {
+    fs.appendFileSync("debug.log", "[CodeSearch] " + (typeof message === "object" ? JSON.stringify(message) : message) + "\n");
+  } catch (e) { }
+}
 
 export interface DiscountCodeResult {
   code: string;
@@ -17,8 +26,8 @@ export interface DiscountCodeResult {
  */
 export async function searchDiscountCodes(query: string): Promise<DiscountCodeResult[]> {
   try {
-    console.log(`[CodeSearch] Starting search for: ${query}`);
-    
+    log(`Starting search for: ${query}`);
+
     // Use LLM to search for discount codes
     const searchPrompt = `You are a discount code finder assistant. Search for valid, active discount codes for: "${query}".
 
@@ -91,13 +100,26 @@ Find at least 3-5 different codes from various sources. Focus on recent, active 
     });
 
     const content = response.choices[0]?.message?.content;
+    log("LLM Response content: " + content);
+
     if (!content || typeof content !== 'string') {
-      console.log("[CodeSearch] No content in LLM response");
+      log("No content in LLM response");
       return [];
     }
 
     const parsed = JSON.parse(content);
-    const codes: DiscountCodeResult[] = parsed.codes.map((item: any) => ({
+
+    let codesArray: any[] = [];
+    if (Array.isArray(parsed)) {
+      codesArray = parsed;
+    } else if (parsed.codes && Array.isArray(parsed.codes)) {
+      codesArray = parsed.codes;
+    } else {
+      log("Invalid response format: " + JSON.stringify(parsed));
+      return [];
+    }
+
+    const codes: DiscountCodeResult[] = codesArray.map((item: any) => ({
       code: item.code,
       merchantName: item.merchantName,
       merchantUrl: item.merchantUrl,
@@ -107,10 +129,10 @@ Find at least 3-5 different codes from various sources. Focus on recent, active 
       source: item.source,
     }));
 
-    console.log(`[CodeSearch] Found ${codes.length} codes`);
+    log(`Found ${codes.length} codes`);
     return codes;
   } catch (error) {
-    console.error("[CodeSearch] Error searching for codes:", error);
+    log("!!! Error searching for codes: " + error);
     return [];
   }
 }
@@ -125,16 +147,16 @@ export async function verifyDiscountCode(
   merchantName: string
 ): Promise<{ valid: boolean; details: string }> {
   try {
-    console.log(`[CodeVerification] Verifying code ${code} for ${merchantName} using browser automation`);
-    
+    log(`Verifying code ${code} for ${merchantName} using browser automation`);
+
     // Use Puppeteer to verify the code on the actual merchant website
     const result = await verifyCodeWithBrowser(code, merchantUrl, merchantName);
-    
-    console.log(`[CodeVerification] Browser result for ${code}: ${result.valid ? 'VALID' : 'INVALID'} - ${result.details}`);
-    
+
+    log(`Browser result for ${code}: ${result.valid ? 'VALID' : 'INVALID'} - ${result.details}`);
+
     return result;
   } catch (error) {
-    console.error("[CodeVerification] Error verifying code:", error);
+    log("Error verifying code: " + error);
     return {
       valid: false,
       details: `Verification error: ${error instanceof Error ? error.message : 'Unknown error'}`,

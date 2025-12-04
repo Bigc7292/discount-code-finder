@@ -1,42 +1,43 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, index } from "drizzle-orm/mysql-core";
+import { pgTable, serial, text, timestamp, boolean, integer, index } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 /**
  * Core user table backing auth flow.
  */
-export const users = mysqlTable("users", {
-  id: int("id").autoincrement().primaryKey(),
-  openId: varchar("openId", { length: 64 }).notNull().unique(),
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  openId: text("openId").notNull().unique(),
   name: text("name"),
-  email: varchar("email", { length: 320 }),
-  loginMethod: varchar("loginMethod", { length: 64 }),
-  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
-  
+  email: text("email"),
+  loginMethod: text("loginMethod"),
+  role: text("role").default("user").notNull(), // "user" | "admin"
+
   // Subscription fields
-  stripeCustomerId: varchar("stripeCustomerId", { length: 255 }),
-  stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 255 }),
-  subscriptionStatus: mysqlEnum("subscriptionStatus", ["trial", "active", "canceled", "expired"]).default("trial").notNull(),
+  stripeCustomerId: text("stripeCustomerId"),
+  stripeSubscriptionId: text("stripeSubscriptionId"),
+  subscriptionStatus: text("subscriptionStatus").default("trial").notNull(), // "trial" | "active" | "canceled" | "expired"
   trialEndsAt: timestamp("trialEndsAt"),
   subscriptionEndsAt: timestamp("subscriptionEndsAt"),
-  
+
   // Referral fields
-  referralCode: varchar("referralCode", { length: 32 }).unique(),
-  referredBy: int("referredBy"),
-  freeMonthsRemaining: int("freeMonthsRemaining").default(0).notNull(),
-  
+  referralCode: text("referralCode").unique(),
+  referredBy: integer("referredBy"),
+  freeMonthsRemaining: integer("freeMonthsRemaining").default(0).notNull(),
+
   // Daily search limit tracking
-  dailySearchCount: int("dailySearchCount").default(0).notNull(),
+  dailySearchCount: integer("dailySearchCount").default(0).notNull(),
   lastSearchResetDate: timestamp("lastSearchResetDate").defaultNow().notNull(),
-  
+
   // Notification tracking
   searchLimitWarningToday: boolean("searchLimitWarningToday").default(false).notNull(),
   trialExpiryWarningSent: boolean("trialExpiryWarningSent").default(false).notNull(),
-  
+
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
 }, (table) => ({
-  referredByIdx: index("referredBy_idx").on(table.referredBy),
-  stripeCustomerIdx: index("stripeCustomer_idx").on(table.stripeCustomerId),
+  referredByIdx: index("users_referredBy_idx").on(table.referredBy),
+  stripeCustomerIdx: index("users_stripeCustomer_idx").on(table.stripeCustomerId),
 }));
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
@@ -44,26 +45,17 @@ export type InsertUser = typeof users.$inferInsert;
 /**
  * Analytics events for tracking email engagement and user actions
  */
-export const analyticsEvents = mysqlTable("analyticsEvents", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId"),
-  eventType: mysqlEnum("eventType", [
-    "email_sent",
-    "email_opened",
-    "email_clicked",
-    "trial_started",
-    "trial_converted",
-    "trial_expired",
-    "subscription_created",
-    "subscription_canceled"
-  ]).notNull(),
-  eventCategory: varchar("eventCategory", { length: 64 }), // e.g., "search_limit_warning", "trial_expiry_warning"
+export const analyticsEvents = pgTable("analyticsEvents", {
+  id: serial("id").primaryKey(),
+  userId: integer("userId"),
+  eventType: text("eventType").notNull(),
+  eventCategory: text("eventCategory"), // e.g., "search_limit_warning", "trial_expiry_warning"
   metadata: text("metadata"), // JSON string for additional data
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => ({
-  userIdIdx: index("userId_idx").on(table.userId),
-  eventTypeIdx: index("eventType_idx").on(table.eventType),
-  createdAtIdx: index("createdAt_idx").on(table.createdAt),
+  userIdIdx: index("analyticsEvents_userId_idx").on(table.userId),
+  eventTypeIdx: index("analyticsEvents_eventType_idx").on(table.eventType),
+  createdAtIdx: index("analyticsEvents_createdAt_idx").on(table.createdAt),
 }));
 
 export type AnalyticsEvent = typeof analyticsEvents.$inferSelect;
@@ -72,16 +64,16 @@ export type InsertAnalyticsEvent = typeof analyticsEvents.$inferInsert;
 /**
  * Searches performed by users
  */
-export const searches = mysqlTable("searches", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
+export const searches = pgTable("searches", {
+  id: serial("id").primaryKey(),
+  userId: integer("userId").notNull(),
   query: text("query").notNull(),
-  status: mysqlEnum("status", ["pending", "processing", "completed", "failed"]).default("pending").notNull(),
+  status: text("status").default("pending").notNull(), // "pending" | "processing" | "completed" | "failed"
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   completedAt: timestamp("completedAt"),
 }, (table) => ({
-  userIdIdx: index("userId_idx").on(table.userId),
-  statusIdx: index("status_idx").on(table.status),
+  userIdIdx: index("searches_userId_idx").on(table.userId),
+  statusIdx: index("searches_status_idx").on(table.status),
 }));
 
 export type Search = typeof searches.$inferSelect;
@@ -90,22 +82,22 @@ export type InsertSearch = typeof searches.$inferInsert;
 /**
  * Discount codes found and verified by the system
  */
-export const discountCodes = mysqlTable("discountCodes", {
-  id: int("id").autoincrement().primaryKey(),
-  searchId: int("searchId").notNull(),
-  code: varchar("code", { length: 255 }).notNull(),
-  merchantName: varchar("merchantName", { length: 255 }).notNull(),
+export const discountCodes = pgTable("discountCodes", {
+  id: serial("id").primaryKey(),
+  searchId: integer("searchId").notNull(),
+  code: text("code").notNull(),
+  merchantName: text("merchantName").notNull(),
   merchantUrl: text("merchantUrl"),
   description: text("description"),
-  discountAmount: varchar("discountAmount", { length: 100 }),
+  discountAmount: text("discountAmount"),
   expiryDate: timestamp("expiryDate"),
   verified: boolean("verified").default(false).notNull(),
   verifiedAt: timestamp("verifiedAt"),
-  source: varchar("source", { length: 255 }),
+  source: text("source"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => ({
-  searchIdIdx: index("searchId_idx").on(table.searchId),
-  verifiedIdx: index("verified_idx").on(table.verified),
+  searchIdIdx: index("discountCodes_searchId_idx").on(table.searchId),
+  verifiedIdx: index("discountCodes_verified_idx").on(table.verified),
 }));
 
 export type DiscountCode = typeof discountCodes.$inferSelect;
@@ -114,17 +106,17 @@ export type InsertDiscountCode = typeof discountCodes.$inferInsert;
 /**
  * Inbox messages for delivering verified codes to users
  */
-export const inboxMessages = mysqlTable("inboxMessages", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
-  searchId: int("searchId").notNull(),
-  discountCodeId: int("discountCodeId").notNull(),
+export const inboxMessages = pgTable("inboxMessages", {
+  id: serial("id").primaryKey(),
+  userId: integer("userId").notNull(),
+  searchId: integer("searchId").notNull(),
+  discountCodeId: integer("discountCodeId").notNull(),
   isRead: boolean("isRead").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   readAt: timestamp("readAt"),
 }, (table) => ({
-  userIdIdx: index("userId_idx").on(table.userId),
-  isReadIdx: index("isRead_idx").on(table.isRead),
+  userIdIdx: index("inboxMessages_userId_idx").on(table.userId),
+  isReadIdx: index("inboxMessages_isRead_idx").on(table.isRead),
 }));
 
 export type InboxMessage = typeof inboxMessages.$inferSelect;
@@ -133,16 +125,16 @@ export type InsertInboxMessage = typeof inboxMessages.$inferInsert;
 /**
  * Referral tracking for reward system
  */
-export const referrals = mysqlTable("referrals", {
-  id: int("id").autoincrement().primaryKey(),
-  referrerId: int("referrerId").notNull(),
-  referredUserId: int("referredUserId").notNull(),
+export const referrals = pgTable("referrals", {
+  id: serial("id").primaryKey(),
+  referrerId: integer("referrerId").notNull(),
+  referredUserId: integer("referredUserId").notNull(),
   rewardGranted: boolean("rewardGranted").default(false).notNull(),
   rewardGrantedAt: timestamp("rewardGrantedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => ({
-  referrerIdIdx: index("referrerId_idx").on(table.referrerId),
-  referredUserIdIdx: index("referredUserId_idx").on(table.referredUserId),
+  referrerIdIdx: index("referrals_referrerId_idx").on(table.referrerId),
+  referredUserIdIdx: index("referrals_referredUserId_idx").on(table.referredUserId),
 }));
 
 export type Referral = typeof referrals.$inferSelect;
@@ -151,15 +143,15 @@ export type InsertReferral = typeof referrals.$inferInsert;
 /**
  * Verification logs for tracking code verification attempts
  */
-export const verificationLogs = mysqlTable("verificationLogs", {
-  id: int("id").autoincrement().primaryKey(),
-  discountCodeId: int("discountCodeId").notNull(),
+export const verificationLogs = pgTable("verificationLogs", {
+  id: serial("id").primaryKey(),
+  discountCodeId: integer("discountCodeId").notNull(),
   success: boolean("success").notNull(),
   errorMessage: text("errorMessage"),
   verificationDetails: text("verificationDetails"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => ({
-  discountCodeIdIdx: index("discountCodeId_idx").on(table.discountCodeId),
+  discountCodeIdIdx: index("verificationLogs_discountCodeId_idx").on(table.discountCodeId),
 }));
 
 export type VerificationLog = typeof verificationLogs.$inferSelect;

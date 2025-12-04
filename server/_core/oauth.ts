@@ -50,4 +50,39 @@ export function registerOAuthRoutes(app: Express) {
       res.status(500).json({ error: "OAuth callback failed" });
     }
   });
+
+  // Dev Login Route for testing/sharing without real OAuth
+  app.get("/api/auth/dev-login", async (req: Request, res: Response) => {
+    const role = getQueryParam(req, "role") === "admin" ? "admin" : "user";
+    const name = getQueryParam(req, "name") || (role === "admin" ? "Admin User" : "Test User");
+
+    // Use a fixed ID for admin to ensure consistency, random for user
+    const openId = role === "admin" ? "dev-admin-id" : `dev-user-${Date.now()}`;
+    const email = role === "admin" ? "admin@example.com" : `user-${Date.now()}@example.com`;
+
+    try {
+      await db.upsertUser({
+        openId,
+        name,
+        email,
+        role, // Explicitly set role
+        loginMethod: "dev-login",
+        lastSignedIn: new Date(),
+        subscriptionStatus: "active", // Give active sub for testing
+      });
+
+      const sessionToken = await sdk.createSessionToken(openId, {
+        name,
+        expiresInMs: ONE_YEAR_MS,
+      });
+
+      const cookieOptions = getSessionCookieOptions(req);
+      res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+
+      res.redirect(302, "/");
+    } catch (error) {
+      console.error("[DevLogin] Failed", error);
+      res.status(500).json({ error: "Dev login failed" });
+    }
+  });
 }
