@@ -1,11 +1,5 @@
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
-var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
-  get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
-}) : x)(function(x) {
-  if (typeof require !== "undefined") return require.apply(this, arguments);
-  throw Error('Dynamic require of "' + x + '" is not supported');
-});
 var __esm = (fn, res) => function __init() {
   return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
 };
@@ -1412,7 +1406,8 @@ import { onRequest } from "firebase-functions/v2/https";
 
 // server/_core/app.ts
 import "dotenv/config";
-import { createExpressMiddleware } from "@trpc/server/adapters/express";
+import express2 from "express";
+import * as trpcExpress from "@trpc/server/adapters/express";
 
 // shared/const.ts
 var COOKIE_NAME = "app_session_id";
@@ -2668,7 +2663,6 @@ function serveStatic(app) {
 
 // server/_core/app.ts
 import { createServer } from "http";
-var express2 = __require("express");
 async function createApp() {
   const app = express2();
   const server = createServer(app);
@@ -2683,7 +2677,7 @@ async function createApp() {
   registerOAuthRoutes(app);
   app.use(
     "/api/trpc",
-    createExpressMiddleware({
+    trpcExpress.createExpressMiddleware({
       router: appRouter,
       createContext
     })

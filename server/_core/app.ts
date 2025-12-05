@@ -1,6 +1,6 @@
 import "dotenv/config";
-import express = require("express");
-import { createExpressMiddleware } from "@trpc/server/adapters/express";
+import express from "express";
+import * as trpcExpress from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
@@ -32,7 +32,7 @@ export async function createApp() {
     // tRPC API
     app.use(
         "/api/trpc",
-        createExpressMiddleware({
+        trpcExpress.createExpressMiddleware({
             router: appRouter,
             createContext,
         })
